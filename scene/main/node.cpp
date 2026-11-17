@@ -3541,7 +3541,11 @@ PackedStringArray Node::get_configuration_warnings() const {
 	List<PropertyInfo> properties;
 	get_property_list(&properties);
 	for (const PropertyInfo &E : properties) {
-		if ((E.usage & PROPERTY_USAGE_REQUIRED) && get(E.name).get_type() == Variant::NIL) {
+		if (!(E.usage & PROPERTY_USAGE_REQUIRED)) {
+			continue;
+		}
+		const Variant value = get(E.name);
+		if (value.get_type() == Variant::NIL || (value.get_type() == Variant::OBJECT && value.get_validated_object() == nullptr)) {
 			ret.append("Property " + E.name.quote() + " is required but not set.");
 		}
 	}
