@@ -223,14 +223,39 @@ void EditorUndoRedoManager::_add_undo_method(const Variant **p_args, int p_argco
 	add_undo_methodp(object, method, p_args + 2, p_argcount - 2);
 }
 
+static Callable _get_required_property_warning_update(Object *p_object, const StringName &p_property) {
+	Node *node = Object::cast_to<Node>(p_object);
+	if (!node) {
+		return Callable();
+	}
+
+	List<PropertyInfo> properties;
+	node->get_property_list(&properties);
+	for (const PropertyInfo &property : properties) {
+		if (property.name == p_property && (property.usage & PROPERTY_USAGE_REQUIRED)) {
+			// Defer the refresh so it runs after property changes even with reversed undo operations.
+			return Callable(node, "call_deferred").bind("update_configuration_warnings");
+		}
+	}
+	return Callable();
+}
+
 void EditorUndoRedoManager::add_do_property(Object *p_object, const StringName &p_property, const Variant &p_value) {
 	UndoRedo *undo_redo = get_history_for_object(p_object).undo_redo;
 	undo_redo->add_do_property(p_object, p_property, p_value);
+	Callable warning_update = _get_required_property_warning_update(p_object, p_property);
+	if (warning_update.is_valid()) {
+		undo_redo->add_do_method(warning_update);
+	}
 }
 
 void EditorUndoRedoManager::add_undo_property(Object *p_object, const StringName &p_property, const Variant &p_value) {
 	UndoRedo *undo_redo = get_history_for_object(p_object).undo_redo;
 	undo_redo->add_undo_property(p_object, p_property, p_value);
+	Callable warning_update = _get_required_property_warning_update(p_object, p_property);
+	if (warning_update.is_valid()) {
+		undo_redo->add_undo_method(warning_update);
+	}
 }
 
 void EditorUndoRedoManager::add_do_reference(Object *p_object) {
